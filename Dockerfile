@@ -10,7 +10,10 @@ RUN apk add --no-cache \
     git \
     gzip \
     bash \
-    rsync
+    rsync \
+    python3 \
+    py3-pip \
+    python3-dev
 
 # Install HepMC2
 WORKDIR /opt
@@ -21,6 +24,21 @@ RUN wget http://hepmc.web.cern.ch/hepmc/releases/hepmc2.06.11.tgz && \
     cmake .. -Dmomentum:STRING=GEV -Dlength:STRING=MM -DCMAKE_INSTALL_PREFIX=/usr/local && \
     make && make install
 
+# Install LHAPDF without Python bindings
+WORKDIR /opt
+RUN wget https://lhapdf.hepforge.org/downloads/?f=LHAPDF-6.4.0.tar.gz -O LHAPDF-6.4.0.tar.gz && \
+    tar -xzvf LHAPDF-6.4.0.tar.gz && \
+    cd LHAPDF-6.4.0 && \
+    ./configure --prefix=/usr/local --disable-python && \
+    make && make install
+
+# Set environment variables for LHAPDF
+ENV LHAPDF_DATA_PATH=/usr/local/share/LHAPDF
+ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+
+# Install the NNPDF31_nnlo_as_0118 PDF set
+RUN wget http://lhapdfsets.web.cern.ch/lhapdfsets/current/NNPDF31_nnlo_as_0118.tar.gz -O- | tar xz -C /usr/local/share/LHAPDF
+
 # Set the Pythia8 path
 ENV PYTHIA8=/usr/local/pythia8312
 ENV PYTHIA8DATA=$PYTHIA8/share/Pythia8/xmldoc
@@ -28,9 +46,9 @@ ENV PYTHIA8DATA=$PYTHIA8/share/Pythia8/xmldoc
 # Copy Pythia8 source into the container
 COPY ./pythia8312 $PYTHIA8
 
-# Build Pythia8
+# Build Pythia8 with LHAPDF support
 WORKDIR $PYTHIA8
-RUN ./configure --enable-shared --with-hepmc2=/usr/local && \
+RUN ./configure --enable-shared --with-hepmc2=/usr/local --with-lhapdf6=/usr/local && \
     make && make install
 
 # Copy suep_generator files to the Pythia directory
